@@ -31,6 +31,9 @@
             font-size: 36px;
             margin-bottom: 10px;
             color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         
         .subtitle {
@@ -77,6 +80,7 @@
         button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            transform: none;
         }
         
         .loading {
@@ -140,6 +144,7 @@
             background: #fdeaea;
             border-radius: 10px;
             margin-top: 20px;
+            display: none;
         }
         
         .donate {
@@ -157,6 +162,7 @@
             font-family: monospace;
             margin: 10px 0;
             cursor: pointer;
+            word-break: break-all;
         }
         
         footer {
@@ -165,31 +171,68 @@
             color: #999;
             font-size: 14px;
         }
+        
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .badge-critical {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .badge-high {
+            background: #e67e22;
+            color: white;
+        }
+        
+        .badge-medium {
+            background: #f1c40f;
+            color: #333;
+        }
+        
+        .badge-low {
+            background: #27ae60;
+            color: white;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🔍 SPYGLASS SEO Scanner</h1>
+        <h1>
+            🔍 SPYGLASS
+            <span class="badge badge-critical">BETA</span>
+        </h1>
         <div class="subtitle">Ultimate SEO Intelligence Platform - 100% Free</div>
         
         <div class="input-group">
             <input type="url" id="url" placeholder="https://example.com" value="https://example.com">
-            <button onclick="scan()" id="scanBtn">Scan Website</button>
+            <button onclick="scanWebsite()" id="scanBtn">Scan Website</button>
+        </div>
+        
+        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <button onclick="quickScan()" id="quickBtn" style="flex: 1; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);">Quick Scan</button>
+            <button onclick="fullScan()" id="fullBtn" style="flex: 1; background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);">Full Scan (2-3 min)</button>
         </div>
         
         <div class="loading" id="loading">
             <div class="spinner"></div>
-            <p>Scanning website... This may take 30-60 seconds</p>
+            <p id="loadingMessage">Scanning website... This may take a moment</p>
         </div>
         
         <div class="results" id="results">
             <h3>Scan Results</h3>
             <div class="stats" id="stats"></div>
             <div id="reportPreview"></div>
-            <button onclick="downloadReport()" id="downloadBtn" style="margin-top: 20px; width: 100%;">📥 Download Full Report</button>
+            <button onclick="downloadReport()" id="downloadBtn" style="margin-top: 20px; width: 100%; display: none;">📥 Download Full Report</button>
         </div>
         
-        <div class="error" id="error" style="display: none;"></div>
+        <div class="error" id="error"></div>
         
         <div class="donate">
             <h3>💖 Support Open Source</h3>
@@ -202,108 +245,179 @@
         
         <footer>
             <p>Made with ❤️ by <a href="https://github.com/ssecgroup" style="color: #667eea;">ssecgroup</a> | MIT License</p>
+            <p style="font-size: 12px;">Version 0.1.0</p>
         </footer>
     </div>
     
     <script>
-        let lastReport = null;
+        let currentUrl = '';
         
-        async function scan() {
+        async function scanWebsite() {
             const url = document.getElementById('url').value;
-            const scanBtn = document.getElementById('scanBtn');
-            const loading = document.getElementById('loading');
-            const results = document.getElementById('results');
-            const error = document.getElementById('error');
-            
+            if (!url) {
+                alert('Please enter a URL');
+                return;
+            }
+            currentUrl = url;
+            await quickScan();
+        }
+        
+        async function quickScan() {
+            const url = document.getElementById('url').value;
             if (!url) {
                 alert('Please enter a URL');
                 return;
             }
             
+            currentUrl = url;
+            await runScan(url, 'quick');
+        }
+        
+        async function fullScan() {
+            const url = document.getElementById('url').value;
+            if (!url) {
+                alert('Please enter a URL');
+                return;
+            }
+            
+            currentUrl = url;
+            await runScan(url, 'full');
+        }
+        
+        async function runScan(url, type) {
+            const scanBtn = document.getElementById('scanBtn');
+            const quickBtn = document.getElementById('quickBtn');
+            const fullBtn = document.getElementById('fullBtn');
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const error = document.getElementById('error');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const loadingMessage = document.getElementById('loadingMessage');
+            
+            // Disable buttons
+            [scanBtn, quickBtn, fullBtn].forEach(btn => btn.disabled = true);
+            
             // Show loading
-            scanBtn.disabled = true;
+            if (type === 'full') {
+                loadingMessage.textContent = 'Running full SEO scan... This may take 2-3 minutes';
+            } else {
+                loadingMessage.textContent = 'Running quick scan...';
+            }
             loading.style.display = 'block';
             results.style.display = 'none';
             error.style.display = 'none';
+            downloadBtn.style.display = 'none';
             
             try {
-                const response = await fetch(`/api/scan?url=${encodeURIComponent(url)}`);
-                const data = await response.json();
-                
-                if (data.error) {
-                    throw new Error(data.error);
+                let response;
+                if (type === 'quick') {
+                    response = await fetch(`/api/scan?url=${encodeURIComponent(url)}`);
+                    const data = await response.json();
+                    
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    displayQuickResults(data);
+                } else {
+                    response = await fetch('/api/scan', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ url: url })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const html = await response.text();
+                    displayFullResults(html);
+                    downloadBtn.style.display = 'block';
                 }
-                
-                // Show results
-                displayResults(data);
-                lastReport = data;
                 
             } catch (err) {
                 error.style.display = 'block';
                 error.textContent = 'Error: ' + err.message;
             } finally {
-                scanBtn.disabled = false;
+                [scanBtn, quickBtn, fullBtn].forEach(btn => btn.disabled = false);
                 loading.style.display = 'none';
             }
         }
         
-        function displayResults(data) {
+        function displayQuickResults(data) {
             const stats = document.getElementById('stats');
             const results = document.getElementById('results');
             
+            let riskBadge = '';
+            if (data.risk_level === 'critical') {
+                riskBadge = '<span class="badge badge-critical">CRITICAL</span>';
+            } else if (data.risk_level === 'high') {
+                riskBadge = '<span class="badge badge-high">HIGH</span>';
+            } else if (data.risk_level === 'medium') {
+                riskBadge = '<span class="badge badge-medium">MEDIUM</span>';
+            } else {
+                riskBadge = '<span class="badge badge-low">LOW</span>';
+            }
+            
             stats.innerHTML = `
                 <div class="stat">
-                    <div class="stat-value">${data.stats?.pages_crawled || 0}</div>
+                    <div class="stat-value">${data.pages_scanned || 0}</div>
                     <div class="stat-label">Pages</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-value">${data.issues_count || 0}</div>
+                    <div class="stat-value">${data.total_issues || 0}</div>
                     <div class="stat-label">Issues</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-value">${data.stats?.critical_issues || 0}</div>
+                    <div class="stat-value">${data.critical_issues || 0}</div>
                     <div class="stat-label">Critical</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-value">${data.summary?.overall_score || 0}</div>
+                    <div class="stat-value">${data.score || 0}</div>
                     <div class="stat-label">Score</div>
+                </div>
+            `;
+            
+            document.getElementById('reportPreview').innerHTML = `
+                <div style="background: white; padding: 15px; border-radius: 10px; margin-top: 20px;">
+                    <h4>Risk Level: ${riskBadge}</h4>
+                    <p>URL: ${data.url}</p>
+                    <p>Run a full scan for detailed recommendations.</p>
                 </div>
             `;
             
             results.style.display = 'block';
         }
         
-        async function downloadReport() {
-            const url = document.getElementById('url').value;
-            const downloadBtn = document.getElementById('downloadBtn');
+        function displayFullResults(html) {
+            const results = document.getElementById('results');
+            const reportPreview = document.getElementById('reportPreview');
             
-            downloadBtn.disabled = true;
-            downloadBtn.textContent = '⏳ Generating PDF...';
+            // Store HTML for download
+            window.lastReportHTML = html;
             
-            try {
-                const response = await fetch('/api/scan', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ url })
-                });
-                
-                const html = await response.text();
-                
-                // Create blob and download
-                const blob = new Blob([html], { type: 'text/html' });
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = `spyglass_report_${new Date().getTime()}.html`;
-                a.click();
-                
-            } catch (err) {
-                alert('Error downloading report: ' + err.message);
-            } finally {
-                downloadBtn.disabled = false;
-                downloadBtn.textContent = '📥 Download Full Report';
+            reportPreview.innerHTML = `
+                <div style="background: #27ae60; color: white; padding: 15px; border-radius: 10px;">
+                    ✅ Full scan complete! Click Download to save the report.
+                </div>
+            `;
+            
+            results.style.display = 'block';
+        }
+        
+        function downloadReport() {
+            if (!window.lastReportHTML) {
+                alert('No report available. Run a full scan first.');
+                return;
             }
+            
+            const blob = new Blob([window.lastReportHTML], { type: 'text/html' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `spyglass_report_${currentUrl.replace(/[^a-z0-9]/gi, '_')}_${new Date().getTime()}.html`;
+            a.click();
         }
         
         function copyAddress() {
@@ -311,6 +425,11 @@
             navigator.clipboard.writeText(addr);
             alert('ETH address copied!');
         }
+        
+        // Load example on page load
+        window.onload = function() {
+            document.getElementById('url').value = 'https://example.com';
+        };
     </script>
 </body>
 </html>
