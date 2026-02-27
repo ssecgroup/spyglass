@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SPYGLASS SEO Scanner</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            display: none;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .stat {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .error {
+            color: #e74c3c;
+            padding: 20px;
+            background: #fdeaea;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        
+        .donate {
+            margin-top: 40px;
+            padding: 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .eth-address {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #999;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 SPYGLASS SEO Scanner</h1>
+        <div class="subtitle">Ultimate SEO Intelligence Platform - 100% Free</div>
+        
+        <div class="input-group">
+            <input type="url" id="url" placeholder="https://example.com" value="https://example.com">
+            <button onclick="scan()" id="scanBtn">Scan Website</button>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Scanning website... This may take 30-60 seconds</p>
+        </div>
+        
+        <div class="results" id="results">
+            <h3>Scan Results</h3>
+            <div class="stats" id="stats"></div>
+            <div id="reportPreview"></div>
+            <button onclick="downloadReport()" id="downloadBtn" style="margin-top: 20px; width: 100%;">📥 Download Full Report</button>
+        </div>
+        
+        <div class="error" id="error" style="display: none;"></div>
+        
+        <div class="donate">
+            <h3>💖 Support Open Source</h3>
+            <p>SPYGLASS is completely free. If you find it useful:</p>
+            <div class="eth-address" onclick="copyAddress()">
+                0x8242f0f25c5445F7822e80d3C9615e57586c6639
+            </div>
+            <p style="font-size: 12px;">Click to copy ETH address</p>
+        </div>
+        
+        <footer>
+            <p>Made with ❤️ by <a href="https://github.com/ssecgroup" style="color: #667eea;">ssecgroup</a> | MIT License</p>
+        </footer>
+    </div>
+    
+    <script>
+        let lastReport = null;
+        
+        async function scan() {
+            const url = document.getElementById('url').value;
+            const scanBtn = document.getElementById('scanBtn');
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const error = document.getElementById('error');
+            
+            if (!url) {
+                alert('Please enter a URL');
+                return;
+            }
+            
+            // Show loading
+            scanBtn.disabled = true;
+            loading.style.display = 'block';
+            results.style.display = 'none';
+            error.style.display = 'none';
+            
+            try {
+                const response = await fetch(`/api/scan?url=${encodeURIComponent(url)}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Show results
+                displayResults(data);
+                lastReport = data;
+                
+            } catch (err) {
+                error.style.display = 'block';
+                error.textContent = 'Error: ' + err.message;
+            } finally {
+                scanBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+        
+        function displayResults(data) {
+            const stats = document.getElementById('stats');
+            const results = document.getElementById('results');
+            
+            stats.innerHTML = `
+                <div class="stat">
+                    <div class="stat-value">${data.stats?.pages_crawled || 0}</div>
+                    <div class="stat-label">Pages</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">${data.issues_count || 0}</div>
+                    <div class="stat-label">Issues</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">${data.stats?.critical_issues || 0}</div>
+                    <div class="stat-label">Critical</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">${data.summary?.overall_score || 0}</div>
+                    <div class="stat-label">Score</div>
+                </div>
+            `;
+            
+            results.style.display = 'block';
+        }
+        
+        async function downloadReport() {
+            const url = document.getElementById('url').value;
+            const downloadBtn = document.getElementById('downloadBtn');
+            
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = '⏳ Generating PDF...';
+            
+            try {
+                const response = await fetch('/api/scan', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url })
+                });
+                
+                const html = await response.text();
+                
+                // Create blob and download
+                const blob = new Blob([html], { type: 'text/html' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `spyglass_report_${new Date().getTime()}.html`;
+                a.click();
+                
+            } catch (err) {
+                alert('Error downloading report: ' + err.message);
+            } finally {
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = '📥 Download Full Report';
+            }
+        }
+        
+        function copyAddress() {
+            const addr = '0x8242f0f25c5445F7822e80d3C9615e57586c6639';
+            navigator.clipboard.writeText(addr);
+            alert('ETH address copied!');
+        }
+    </script>
+</body>
+</html>

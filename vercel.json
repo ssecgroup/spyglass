@@ -1,0 +1,25 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/scan.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/scan",
+      "dest": "/api/scan.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/api/scan.py"
+    }
+  ],
+  "functions": {
+    "api/scan.py": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  }
+}
