@@ -1,5 +1,5 @@
 """
-SPYGLASS API for Vercel - Complete working version with POST support
+SPYGLASS API for Vercel - Complete working version with proper imports
 """
 import sys
 import os
@@ -7,21 +7,48 @@ import json
 import asyncio
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
-from datetime import datetime
 
-# Add project root to path
+# Get the absolute path to the project root
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, project_root)
 
-# Try importing spyglass
+# Add all possible paths
+sys.path.insert(0, project_root)
+sys.path.insert(0, os.path.join(project_root, 'spyglass'))
+sys.path.insert(0, os.path.join(project_root, 'core'))
+
+# Try multiple import strategies
+HAS_SPYGLASS = False
+UltimateSEOEngine = None
+ScanConfig = None
+
 try:
+    # Strategy 1: Direct import from spyglass package
     from spyglass.core.ultimate_engine import UltimateSEOEngine
     from spyglass.core.config import ScanConfig
     HAS_SPYGLASS = True
-    print("✅ Spyglass imported successfully")
-except ImportError as e:
-    HAS_SPYGLASS = False
-    print(f"❌ Spyglass import error: {e}")
+    print("✅ Import strategy 1 succeeded")
+except ImportError as e1:
+    try:
+        # Strategy 2: Import from core directly
+        sys.path.insert(0, os.path.join(project_root, 'core'))
+        from ultimate_engine import UltimateSEOEngine
+        from config import ScanConfig
+        HAS_SPYGLASS = True
+        print("✅ Import strategy 2 succeeded")
+    except ImportError as e2:
+        try:
+            # Strategy 3: Import from local modules
+            from core.ultimate_engine import UltimateSEOEngine
+            from core.config import ScanConfig
+            HAS_SPYGLASS = True
+            print("✅ Import strategy 3 succeeded")
+        except ImportError as e3:
+            print(f"❌ All import strategies failed:")
+            print(f"  Strategy 1: {e1}")
+            print(f"  Strategy 2: {e2}")
+            print(f"  Strategy 3: {e3}")
+            print(f"Python path: {sys.path}")
+            print(f"Project root contents: {os.listdir(project_root) if os.path.exists(project_root) else 'Not found'}")
 
 class handler(BaseHTTPRequestHandler):
     """Handle HTTP requests to Vercel"""
@@ -59,12 +86,25 @@ class handler(BaseHTTPRequestHandler):
         if not HAS_SPYGLASS:
             self.send_header('Content-type', 'application/json')
             self.end_headers()
+            
+            # Get directory listing for debugging
+            project_contents = []
+            if os.path.exists(project_root):
+                project_contents = os.listdir(project_root)[:10]
+            
+            core_path = os.path.join(project_root, 'core')
+            core_contents = []
+            if os.path.exists(core_path):
+                core_contents = os.listdir(core_path)[:10]
+            
             self.wfile.write(json.dumps({
                 'status': 'error',
                 'error': 'Spyglass module not installed',
-                'solution': 'Make sure requirements.txt has "-e ." and redeploy',
-                'python_path': sys.path,
-                'project_root': project_root
+                'message': 'Running in diagnostic mode',
+                'project_root': project_root,
+                'project_contents': project_contents,
+                'core_contents': core_contents,
+                'python_path': sys.path[:5]
             }).encode())
             return
         
@@ -80,6 +120,7 @@ class handler(BaseHTTPRequestHandler):
                     'status': 'ok',
                     'message': 'SPYGLASS API is running!',
                     'version': '0.1.0',
+                    'import_status': 'success',
                     'endpoints': {
                         'GET /api/scan?url=example.com': 'Quick scan',
                         'POST /api/scan (JSON with {"url": "..."})': 'Full HTML report'
@@ -127,8 +168,8 @@ class handler(BaseHTTPRequestHandler):
             # Configure scan based on type
             if quick:
                 config = ScanConfig(
-                    max_pages=3,
-                    concurrent_requests=2,
+                    max_pages=2,
+                    concurrent_requests=1,
                     check_subdomains=False,
                     check_ssl_tls=False,
                     check_exposed_data=False,
@@ -137,8 +178,8 @@ class handler(BaseHTTPRequestHandler):
                 )
             else:
                 config = ScanConfig(
-                    max_pages=10,
-                    concurrent_requests=3,
+                    max_pages=5,
+                    concurrent_requests=2,
                     check_subdomains=True,
                     check_ssl_tls=True,
                     check_exposed_data=True,
