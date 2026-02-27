@@ -5,7 +5,7 @@
       "src": "api/scan.py",
       "use": "@vercel/python",
       "config": {
-        "maxDuration": 10,
+        "maxDuration": 60,
         "memory": 1024,
         "runtime": "python3.9"
       }
@@ -28,5 +28,12 @@
       "src": "/(.*)",
       "dest": "/public/$1"
     }
-  ]
+  ],
+  "functions": {
+    "api/scan.py": {
+      "maxDuration": 60,
+      "memory": 1024,
+      "runtime": "python3.9"
+    }
+  }
 }
