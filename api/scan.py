@@ -1,5 +1,5 @@
 """
-SPYGLASS API
+SPYGLASS API for Vercel - Complete working version with POST support
 """
 import sys
 import os
@@ -18,10 +18,10 @@ try:
     from spyglass.core.ultimate_engine import UltimateSEOEngine
     from spyglass.core.config import ScanConfig
     HAS_SPYGLASS = True
-    print(" Spyglass imported successfully")
+    print("✅ Spyglass imported successfully")
 except ImportError as e:
     HAS_SPYGLASS = False
-    print(f" Spyglass import error: {e}")
+    print(f"❌ Spyglass import error: {e}")
 
 class handler(BaseHTTPRequestHandler):
     """Handle HTTP requests to Vercel"""
@@ -116,6 +116,10 @@ class handler(BaseHTTPRequestHandler):
     def _run_scan(self, url, quick=True):
         """Run scan and return results"""
         try:
+            # Validate URL
+            if not url.startswith(('http://', 'https://')):
+                url = 'https://' + url
+            
             # Run async scan
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -123,16 +127,23 @@ class handler(BaseHTTPRequestHandler):
             # Configure scan based on type
             if quick:
                 config = ScanConfig(
-                    max_pages=5,
-                    concurrent_requests=3,
+                    max_pages=3,
+                    concurrent_requests=2,
                     check_subdomains=False,
                     check_ssl_tls=False,
-                    check_exposed_data=False
+                    check_exposed_data=False,
+                    check_misconfigurations=False,
+                    check_dead_links=False
                 )
             else:
                 config = ScanConfig(
-                    max_pages=20,
-                    concurrent_requests=5
+                    max_pages=10,
+                    concurrent_requests=3,
+                    check_subdomains=True,
+                    check_ssl_tls=True,
+                    check_exposed_data=True,
+                    check_misconfigurations=True,
+                    check_dead_links=True
                 )
             
             engine = UltimateSEOEngine(config)
@@ -149,7 +160,9 @@ class handler(BaseHTTPRequestHandler):
                     'pages_scanned': results['statistics']['pages_crawled'],
                     'total_issues': results['statistics']['total_issues'],
                     'critical_issues': results['statistics']['critical_issues'],
-                    'score': results['summary']['overall_score']
+                    'high_issues': results['statistics']['high_issues'],
+                    'score': results['summary']['overall_score'],
+                    'risk_level': results['summary']['risk_level']
                 }).encode())
             else:
                 # Return HTML for full report
