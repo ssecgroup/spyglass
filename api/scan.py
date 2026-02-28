@@ -1,70 +1,50 @@
 """
-ssec-seo API for Vercel - ULTIMATE DEBUG VERSION
+ssec-seo API for Vercel - UNIVERSAL IMPORT FIX
 """
 import sys
 import os
 import json
 import asyncio
-import traceback
+import inspect
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
-# Get paths
+# Add paths
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-core_path = os.path.join(project_root, 'core')
+core_dir = os.path.join(project_root, 'core')
+sys.path.insert(0, core_dir)
 
-# Add to path
-sys.path.insert(0, core_path)
-
-# Comprehensive debug info
-debug_info = {
-    'project_root': project_root,
-    'core_path': core_path,
-    'core_exists': os.path.exists(core_path),
-    'files_in_core': os.listdir(core_path) if os.path.exists(core_path) else [],
-    'python_path': sys.path[:5],
-    'import_attempts': []
-}
-
-# Try to import with detailed error tracking
-HAS_REAL_ENGINE = False
+# Dynamic import that finds ANY class
+HAS_ENGINE = False
 UltimateSEOEngine = None
 ScanConfig = None
 
-# Check if files exist
-ultimate_file = os.path.join(core_path, 'ultimate_engine.py')
-config_file = os.path.join(core_path, 'config.py')
-
-debug_info['ultimate_exists'] = os.path.exists(ultimate_file)
-debug_info['config_exists'] = os.path.exists(config_file)
-
-if debug_info['ultimate_exists'] and debug_info['config_exists']:
-    try:
-        # Method 1: Direct import
-        from ultimate_engine import UltimateSEOEngine
-        from config import ScanConfig
-        HAS_REAL_ENGINE = True
-        debug_info['import_attempts'].append({'method': 'direct', 'success': True})
-    except Exception as e1:
-        debug_info['import_attempts'].append({'method': 'direct', 'success': False, 'error': str(e1)})
+try:
+    # Import the modules
+    import ultimate_engine
+    import config
+    
+    # Find any class in ultimate_engine that looks like an SEO engine
+    for name, obj in inspect.getmembers(ultimate_engine):
+        if inspect.isclass(obj) and ('SEO' in name or 'Engine' in name or 'Ultimate' in name):
+            UltimateSEOEngine = obj
+            print(f" Found engine class: {name}")
+            break
+    
+    # Find ScanConfig class
+    for name, obj in inspect.getmembers(config):
+        if inspect.isclass(obj) and ('ScanConfig' in name or 'Config' in name):
+            ScanConfig = obj
+            print(f" Found config class: {name}")
+            break
+    
+    if UltimateSEOEngine and ScanConfig:
+        HAS_ENGINE = True
+        print(" REAL ENGINE READY")
         
-        try:
-            # Method 2: Import with full path
-            import importlib.util
-            spec = importlib.util.spec_from_file_location('ultimate_engine', ultimate_file)
-            ultimate_module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(ultimate_module)
-            UltimateSEOEngine = ultimate_module.UltimateSEOEngine
-            
-            spec2 = importlib.util.spec_from_file_location('config', config_file)
-            config_module = importlib.util.module_from_spec(spec2)
-            spec2.loader.exec_module(config_module)
-            ScanConfig = config_module.ScanConfig
-            
-            HAS_REAL_ENGINE = True
-            debug_info['import_attempts'].append({'method': 'file_import', 'success': True})
-        except Exception as e2:
-            debug_info['import_attempts'].append({'method': 'file_import', 'success': False, 'error': str(e2), 'traceback': traceback.format_exc()})
+except Exception as e:
+    print(f"❌ Error: {e}")
+    HAS_ENGINE = False
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -75,32 +55,29 @@ class handler(BaseHTTPRequestHandler):
         
         parsed = urlparse(self.path)
         query = parse_qs(parsed.query)
-        
-        # If debug=true, return full debug info
-        if 'debug' in query:
-            self.wfile.write(json.dumps(debug_info, default=str, indent=2).encode())
-            return
-        
         url = query.get('url', [None])[0]
         
-        if not HAS_REAL_ENGINE:
+        if not HAS_ENGINE:
             self.wfile.write(json.dumps({
                 'status': 'error',
-                'error': 'Engine not loaded',
-                'debug_hint': 'Add ?debug=true to see why',
-                'mock': self.generate_mock_data(url or 'no-url')
+                'message': 'Engine not loaded',
+                'found_classes': {
+                    'ultimate_engine': dir(ultimate_engine) if 'ultimate_engine' in dir() else [],
+                    'config': dir(config) if 'config' in dir() else []
+                }
             }).encode())
             return
         
         if not url:
-            self.wfile.write(json.dumps({'status': 'ok', 'message': 'ssec-seo ready'}).encode())
+            self.wfile.write(json.dumps({'status': 'ready'}).encode())
             return
         
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            config = ScanConfig(max_pages=2, concurrent_requests=1)
-            engine = UltimateSEOEngine(config)
+            
+            config_obj = ScanConfig(max_pages=2, concurrent_requests=1)
+            engine = UltimateSEOEngine(config_obj)
             results = loop.run_until_complete(engine.scan(url))
             loop.close()
             
@@ -112,22 +89,9 @@ class handler(BaseHTTPRequestHandler):
             }).encode())
             
         except Exception as e:
-            self.wfile.write(json.dumps({
-                'error': str(e),
-                'mock': self.generate_mock_data(url)
-            }).encode())
-    
-    def generate_mock_data(self, url):
-        import random
-        return {
-            'url': url,
-            'pages': random.randint(5, 20),
-            'issues': random.randint(5, 30),
-            'critical': random.randint(0, 3)
-        }
+            self.wfile.write(json.dumps({'error': str(e)}).encode())
     
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.end_headers()
