@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SPYGLASS - SEO Intelligence Platform
+ssec-seo - SEO Intelligence Platform by ssecgroup
 """
 from setuptools import setup, find_packages
 
@@ -8,19 +8,28 @@ with open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
 
 setup(
-    name="spyglass-seo",
+    name="ssec-seo",
     version="0.1.0",
     author="ssecgroup",
     author_email="ssecgroup@users.noreply.github.com",
-    description="Advanced open-source SEO intelligence platform",
+    description="Advanced open-source SEO intelligence platform by ssecgroup",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/ssecgroup/spyglass",
+    url="https://github.com/ssecgroup/ssec-seo",
+    project_urls={
+        "Documentation": "https://ssec-seo.vercel.app",
+        "Source": "https://github.com/ssecgroup/ssec-seo",
+        "Tracker": "https://github.com/ssecgroup/ssec-seo/issues",
+        "Donate": "https://etherscan.io/address/0x8242f0f25c5445F7822e80d3C9615e57586c6639",
+    },
     packages=find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "Topic :: Internet :: WWW/HTTP :: Indexing/Search",
     ],
     python_requires=">=3.8",
     install_requires=[
@@ -35,7 +44,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "spyglass=pipelines.cli:main",
+            "ssec-seo=pipelines.cli:main",
         ],
     },
     include_package_data=True,
