@@ -2,9 +2,9 @@
   "version": 2,
   "functions": {
     "api/scan.py": {
-      "runtime": "@vercel/python@4.1.0",
       "maxDuration": 60,
-      "memory": 1024
+      "memory": 1024,
+      "runtime": "@vercel/python@4.1.0"
     }
   },
   "routes": [
