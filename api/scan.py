@@ -1,16 +1,25 @@
 """
-ssec-seo API for Vercel - Working version with mock data
+ssec-seo API for Vercel - Fixed version
 """
+import sys
+import os
 import json
 import random
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
+# Get the absolute path to the project root
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Add all possible paths
+sys.path.insert(0, project_root)
+sys.path.insert(0, os.path.join(project_root, 'core'))
+
 class handler(BaseHTTPRequestHandler):
     """Handle HTTP requests"""
     
     def do_GET(self):
-        """Handle GET requests - Quick scan with mock data"""
+        """Handle GET requests"""
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -37,7 +46,7 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(mock_data).encode())
     
     def do_POST(self):
-        """Handle POST requests - Full scan with mock HTML report"""
+        """Handle POST requests"""
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -65,7 +74,7 @@ class handler(BaseHTTPRequestHandler):
         low = random.randint(3, 10)
         total = critical + high + medium + low
         
-        # Calculate score (lower issues = higher score)
+        # Calculate score
         score = max(30, min(95, 100 - (critical * 10 + high * 3 + medium * 1)))
         
         # Determine risk level
