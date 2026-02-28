@@ -1,37 +1,50 @@
 """
-ssec-seo API for Vercel - Fixed JSON responses
+ssec-seo API for Vercel - Direct file import solution
 """
 import sys
 import os
 import json
 import asyncio
+import importlib.util
 import traceback
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
 # Get the absolute path to the project root
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Add paths to sys.path
 sys.path.insert(0, project_root)
 sys.path.insert(0, os.path.join(project_root, 'ssec_seo'))
 sys.path.insert(0, os.path.join(project_root, 'ssec_seo', 'core'))
 
-# Try to import the engine
-HAS_ENGINE = False
-try:
-    from ssec_seo.core.ultimate_engine import UltimateSEOEngine
-    from ssec_seo.core.config import ScanConfig
-    HAS_ENGINE = True
-    print("✅ Engine imported successfully")
-except ImportError as e:
-    print(f"❌ Import failed: {e}")
+# Direct file imports using importlib
+def import_from_path(module_name, file_path):
+    """Import a module from file path"""
     try:
-        # Fallback to direct import
-        from core.ultimate_engine import UltimateSEOEngine
-        from core.config import ScanConfig
-        HAS_ENGINE = True
-        print("✅ Fallback import succeeded")
-    except ImportError as e2:
-        print(f"❌ Fallback also failed: {e2}")
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    except Exception as e:
+        print(f"Failed to import {module_name} from {file_path}: {e}")
+        return None
+
+# Import core modules directly from files
+ultimate_engine_path = os.path.join(project_root, 'ssec_seo', 'core', 'ultimate_engine.py')
+config_path = os.path.join(project_root, 'ssec_seo', 'core', 'config.py')
+
+ultimate_module = import_from_path('ultimate_engine', ultimate_engine_path)
+config_module = import_from_path('config', config_path)
+
+if ultimate_module and config_module:
+    UltimateSEOEngine = ultimate_module.UltimateSEOEngine
+    ScanConfig = config_module.ScanConfig
+    HAS_ENGINE = True
+    print("✅ Direct file imports successful")
+else:
+    HAS_ENGINE = False
+    print("❌ Direct file imports failed")
 
 class handler(BaseHTTPRequestHandler):
     """Handle HTTP requests"""
@@ -55,7 +68,9 @@ class handler(BaseHTTPRequestHandler):
                 'message': 'The scanning engine could not be loaded',
                 'debug': {
                     'project_root': project_root,
-                    'python_path': str(sys.path)
+                    'ultimate_engine_exists': os.path.exists(ultimate_engine_path),
+                    'config_exists': os.path.exists(config_path),
+                    'core_files': os.listdir(os.path.join(project_root, 'ssec_seo', 'core')) if os.path.exists(os.path.join(project_root, 'ssec_seo', 'core')) else []
                 }
             }).encode())
             return
@@ -64,15 +79,10 @@ class handler(BaseHTTPRequestHandler):
         url = query.get('url', [None])[0]
         
         if not url:
-            # Just return API info
             self.wfile.write(json.dumps({
                 'status': 'ok',
                 'message': 'ssec-seo API is running',
-                'version': '0.1.0',
-                'endpoints': {
-                    'GET /api/scan?url=example.com': 'Quick scan (returns JSON)',
-                    'POST /api/scan with {"url": "example.com"}': 'Full scan (returns HTML report)'
-                }
+                'version': '0.1.0'
             }).encode())
             return
         
@@ -82,31 +92,25 @@ class handler(BaseHTTPRequestHandler):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             
-            # Create minimal config for quick scan
+            # Create minimal config
             config = ScanConfig(
-                max_pages=2,
+                max_pages=1,
                 concurrent_requests=1,
                 check_subdomains=False,
                 check_ssl_tls=False,
-                check_exposed_data=False,
-                check_misconfigurations=False,
-                check_dead_links=False
+                check_exposed_data=False
             )
             
             engine = UltimateSEOEngine(config)
             results = loop.run_until_complete(engine.scan(url))
             loop.close()
             
-            # Return JSON response
             self.wfile.write(json.dumps({
                 'status': 'success',
                 'url': url,
                 'pages_scanned': results['statistics']['pages_crawled'],
                 'total_issues': results['statistics']['total_issues'],
-                'critical_issues': results['statistics']['critical_issues'],
-                'high_issues': results['statistics']['high_issues'],
-                'score': results['summary']['overall_score'],
-                'risk_level': results['summary']['risk_level']
+                'critical_issues': results['statistics']['critical_issues']
             }).encode())
             
         except Exception as e:
@@ -117,20 +121,16 @@ class handler(BaseHTTPRequestHandler):
             }).encode())
     
     def do_POST(self):
-        """Handle POST requests - Full HTML report"""
+        """Handle POST requests"""
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
         
         if not HAS_ENGINE:
-            self.wfile.write(json.dumps({
-                'status': 'error',
-                'error': 'SEO engine not available'
-            }).encode())
+            self.wfile.write(json.dumps({'error': 'Engine not available'}).encode())
             return
         
-        # Get POST data
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
         
@@ -139,28 +139,20 @@ class handler(BaseHTTPRequestHandler):
             url = data.get('url')
             
             if not url:
-                self.wfile.write(json.dumps({
-                    'status': 'error',
-                    'error': 'Missing url parameter'
-                }).encode())
+                self.wfile.write(json.dumps({'error': 'Missing url'}).encode())
                 return
             
-            # For full scan, we'll return JSON first (can be extended to return HTML)
             self.wfile.write(json.dumps({
                 'status': 'success',
-                'message': 'Full scan started',
-                'url': url,
-                'note': 'Full HTML report coming soon'
+                'message': 'Scan started',
+                'url': url
             }).encode())
             
         except Exception as e:
-            self.wfile.write(json.dumps({
-                'status': 'error',
-                'error': str(e)
-            }).encode())
+            self.wfile.write(json.dumps({'error': str(e)}).encode())
     
     def do_OPTIONS(self):
-        """Handle CORS preflight"""
+        """Handle CORS"""
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
