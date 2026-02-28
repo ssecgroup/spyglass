@@ -397,7 +397,6 @@ class UltimateSEOEngine:
         """Generate report in specified format"""
         reporter = UltimateReporter(self.config)
         return reporter.generate(self.results, format)
-=======
 """
 Ultimate SEO Engine - By [github/ssecgroup] Ties everything together
 """
